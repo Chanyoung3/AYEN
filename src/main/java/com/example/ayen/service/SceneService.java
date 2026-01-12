@@ -1,0 +1,136 @@
+package com.example.ayen.service;
+
+import com.example.ayen.dto.entity.*;
+import com.example.ayen.dto.response.UserScene;
+import com.example.ayen.repository.*;
+import com.example.ayen.dto.response.UserScene;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.data.rest.webmvc.ResourceNotFoundException;
+import org.springframework.stereotype.Component;
+
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+@Component
+public class SceneService {
+
+    private final ScenarioPlayRepository scenarioPlayRepository;
+    private final SceneRepository sceneRepository;
+    private final ChoiceRepository choiceRepository;
+    private final ObjectMapper objectMapper;
+    private final UserRepository userRepository;
+    private final ScenarioRepository scenarioRepository;
+    private final ScenarioItemRepository scenarioItemRepository;
+    private final ScenarioPlayStatRepository scenarioPlayStatRepository;
+
+    public SceneService(ScenarioPlayRepository scenarioPlayRepository, SceneRepository sceneRepository, ChoiceRepository choiceRepository, ObjectMapper objectMapper
+    , UserRepository userRepository, ScenarioRepository scenarioRepository, ScenarioItemRepository scenarioItemRepository, ScenarioPlayStatRepository scenarioPlayStatRepository) {
+        this.scenarioPlayRepository = scenarioPlayRepository;
+        this.sceneRepository = sceneRepository;
+        this.choiceRepository = choiceRepository;
+        this.objectMapper = objectMapper;
+        this.userRepository = userRepository;
+        this.scenarioRepository = scenarioRepository;
+        this.scenarioItemRepository = scenarioItemRepository;
+        this.scenarioPlayStatRepository = scenarioPlayStatRepository;
+    }
+
+    public Long findLastSceneIdByUserAndScenario(Long userId, Long scenarioId) {
+        return scenarioPlayRepository.findCurrentSceneIdByUserIdAndScenarioIdAndIs_finished(userId, scenarioId);
+    }
+
+    public UserScene getSceneDto(Long scenarioId, Long sceneId, Long scenarioPlayId) {
+        Scene scene = sceneRepository.findByScenario_IdAndId(scenarioId, sceneId)
+                .orElseThrow(() -> new ResourceNotFoundException("Scene not found"));
+
+        ScenarioPlayStat sps = scenarioPlayStatRepository.findByScenarioPlayId(scenarioPlayId)
+                .orElse(null);
+
+        UserScene.StatDto statDto;
+
+        // 스텟 없으면 기본 스텟, 있으면 불러오기
+        if (sps == null) {
+            statDto = new UserScene.StatDto(0, 0, 50);
+        } else {
+            statDto = new UserScene.StatDto(
+                    sps.getAttack(),
+                    sps.getDefense(),
+                    sps.getHealth()
+            );
+        }
+
+        UserScene dto = new UserScene();
+        dto.setContent(scene.getContent());
+        dto.setImageUrl(scene.getImageUrl());
+        dto.setEnding(scene.getIsEnding());
+        dto.setStats(statDto);
+
+        List<Choice> choices = choiceRepository.findByScene_Id(scene.getId());
+        List<UserScene.ChoiceDto> choiceDtos = new ArrayList<>();
+
+        for (Choice c : choices) {
+            UserScene.ChoiceDto cd = new UserScene.ChoiceDto();
+            cd.setRequiredItem(c.getRequiredCondition());
+            cd.setNextSceneId(c.getNextScene().getId());
+            cd.setDescription(c.getDescription());
+
+            // JSON 문자열을 EffectDto로 변환
+            try {
+                UserScene.EffectDto effectDto = objectMapper.readValue(
+                        c.getEffect(), UserScene.EffectDto.class);
+                cd.setEffect(effectDto);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException("Failed to parse effect JSON", e);
+            }
+
+            choiceDtos.add(cd);
+        }
+
+        dto.setChoices(choiceDtos);
+        return dto;
+    }
+
+    public void insertScenarioPlayIfNotExists(String email, Long scenarioId, Long currentId, String role) {
+        Long userid = userRepository.findIdByEmail(email);
+
+        if (userid == null) {
+            throw new RuntimeException("User ID not found for email: " + email);
+        }
+
+        Optional<ScenarioPlay> existing = scenarioPlayRepository.findByUser_IdAndScenario_IdAndIsFinishedFalse(userid, scenarioId);
+
+        if (existing.isEmpty()) {
+            if (scenarioId == 2 && currentId == 1) {
+                currentId = 12L; // ✅ 시나리오 2의 시작 Scene ID 보정
+            }
+
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            Scenario scenario = scenarioRepository.findById(scenarioId)
+                    .orElseThrow(() -> new RuntimeException("Scenario not found"));
+
+            Scene scene = sceneRepository.findById(currentId)
+                    .orElseThrow(() -> new RuntimeException("Scene not found"));
+
+            ScenarioPlay newPlay = new ScenarioPlay(user, scenario, scene, role);
+            scenarioPlayRepository.save(newPlay);
+
+            int cnt = user.getScenario_play_count();
+            user.setScenario_play_count(++cnt);
+            userRepository.save(user);
+        }
+    }
+
+    public List<String> getItemNamesByUser(Long userId) {
+        List<ScenarioItem> items = scenarioItemRepository.findByScenarioPlayId(userId);
+        return items.stream()
+                .map(userItem -> userItem.getItem().getName())
+                .collect(Collectors.toList());
+    }
+
+}

@@ -3,56 +3,54 @@ import "./Rank.css";
 import SideMenu from "./SideMenu";
 
 function Rank() {
-    const [rankings, setRankings] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [errorMsg, setErrorMsg] = useState("");
+  const [mockRanking, setRanking] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState(null); // 로그인 유저 ID 상태 추가
 
-    useEffect(() => {
-        setLoading(true);
+  useEffect(() => {
+    fetch(`${process.env.REACT_APP_API_URL}/users/rankings`, {
+      method: "GET",
+      credentials: "include",
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.rankings && Array.isArray(json.rankings)) {
+          setRanking(json.rankings);
+          setCurrentUserId(json.currentUserId); // 상태에 저장
+        } else {
+          console.error("랭킹 데이터가 올바른 배열이 아닙니다:", json);
+          setRanking([]);
+        }
+      })
+      .catch((err) => console.error("❌ 요청 실패:", err));
+  }, []);
 
-        fetch("/api/rankings")
-            .then((res) => res.json())
-            .then((response) => {
-                if (response.code === 200) {
-                    const sortedData = response.data.sort((a, b) => b.level - a.level);
-                    setRankings(sortedData);
-                } else if (response.code === 204) {
-                    setRankings([]);
-                    setErrorMsg("데이터가 존재하지 않습니다.");
-                } else {
-                    setErrorMsg("랭킹 데이터를 불러오는 데 실패했습니다.");
-                }
-            })
-            .catch(() => {
-                setErrorMsg("서버와의 통신에 실패했습니다.");
-            })
-            .finally(() => setLoading(false));
-    }, []);
-
-    return (
-        <div className="rank-page">
-            <SideMenu />
-            <h2 className="rank-title">🏆 랭킹</h2>
-            <p className="rank-subtitle">상위 유저들과 나의 위치를 확인해 보세요!</p>
-
-            {loading ? (
-                <p className="loading-text">로딩 중...</p>
-            ) : errorMsg ? (
-                <p className="error-text">{errorMsg}</p>
-            ) : (
-                <ul className="rank-list">
-                    {rankings.map((user, index) => (
-                        <li key={index} className={`rank-item ${user.name === "모험가" ? "me" : ""}`}>
-                            <span className="rank-position">#{index + 1}</span>
-                            <span className="rank-name">{user.name}</span>
-                            <span className="rank-level">LV. {user.level}</span>
-                            <span className="rank-achieve">🏅 {user.achievement_count}개</span>
-                        </li>
-                    ))}
-                </ul>
-            )}
+  return (
+    <div className="rank-page">
+      <div className="top-bar">
+        <SideMenu />
+        <div className="logo">
+          📖 AYEN
         </div>
-    );
+      </div>
+      <h2 className="rank-title">🏆 랭킹</h2>
+      <p className="rank-subtitle">상위 유저들과 나의 위치를 확인해 보세요!</p>
+      <ul className="rank-list">
+        {mockRanking.map((user, index) => (
+          <li
+            key={user.id}
+            className={`rank-item ${user.id === currentUserId ? "me" : ""}`} // 여기서 상태 사용
+          >
+            <span className="rank-position">#{index + 1}</span>
+            <span className="rank-name">
+              {user.name} ({user.social_type})
+            </span>
+            <span className="rank-level">LV. {user.level}</span>
+            <span className="rank-achieve">🏅 {user.achievementCount}개</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 export default Rank;

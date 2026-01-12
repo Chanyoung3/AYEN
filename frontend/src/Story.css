@@ -71,8 +71,7 @@ html, body {
 
 .image-placeholder {
     width: 100%;
-    max-width: 300px;
-    aspect-ratio: 5/3;
+    aspect-ratio: 1/1;
     background: #eee;
     border: 1px solid #ccc;
     color: #555;
@@ -83,11 +82,20 @@ html, body {
     font-size: clamp(12px, 2vw, 14px);
 }
 
+.scene-image {
+    width: 100%;
+    max-width: 550px;
+    height: auto;
+    border-radius: 8px;
+    object-fit: contain;
+  }
+
 /* 설명 */
 .text-box {
     font-size: clamp(13px, 2vw, 16px);
     line-height: 1.6;
     margin: 20px 0;
+    text-align: center;
 }
 
 /* 선택지 */
@@ -95,6 +103,7 @@ html, body {
     display: flex;
     flex-direction: column;
     gap: 4px; /* ✅ 세로 간격 좁힘 */
+    text-align: center;
 }
 
 .choice {
@@ -209,4 +218,13 @@ html, body {
         opacity: 0;
         top: -10px;
     }
+}
+
+.logo {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 24px;
+    font-weight: bold;
+    user-select: none;
 }
