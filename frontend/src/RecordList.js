@@ -14,9 +14,9 @@ function RecordList() {
 
     useEffect(() => {
         setLoading(true);
-        const endpoint = activeTab === "업적" ? "/api/achievements" : "/api/endings";
+        const endpoint = activeTab === "업적" ? `${process.env.REACT_APP_API_URL}/achievements/me` : `${process.env.REACT_APP_API_URL}/endings/me`;
 
-        fetch(endpoint)
+        fetch(endpoint, { credentials: "include" })
             .then((res) => res.json())
             .then((response) => {
                 if (response.code === 200) {
@@ -50,10 +50,13 @@ function RecordList() {
     const handleClick = async (item) => {
         try {
             const endpoint = activeTab === "업적"
-                ? `/api/achievements/${item.id}`
-                : `/api/endings/${item.id}`;
+                ? `${process.env.REACT_APP_API_URL}/achievements/detail/${item.id}`
+                : `${process.env.REACT_APP_API_URL}/endings/detail/${item.id}`;
 
-            const res = await fetch(endpoint);
+            const res = await fetch(endpoint, {
+                method: "GET",
+                credentials: "include",  // 👈 인증 쿠키 포함 중요
+            });
             const response = await res.json();
 
             if (response.code === 200) {
@@ -67,13 +70,19 @@ function RecordList() {
                 alert("상세 정보를 불러오지 못했습니다.");
             }
         } catch (error) {
+            console.error("❌ 요청 실패:", error);
             alert("상세 정보를 불러오는 중 오류가 발생했습니다.");
         }
     };
 
     return (
         <div className="achievement-page">
-            <SideMenu />
+            <div className="top-bar">
+                <SideMenu />
+                <div className="logo">
+                    📖 AYEN
+                </div>
+            </div>
 
             <div className="tabs">
                 <div
@@ -103,17 +112,15 @@ function RecordList() {
                             onClick={() => handleClick(a)}
                             style={{ cursor: "pointer" }}
                         >
-                            {a.image_url ? (
-                                <img
-                                    className="image-placeholder"
-                                    src={a.image_url}
-                                    alt={a.title}
-                                />
+                            {a.url ? (
+                                <div className="image-placeholder">
+                                    <img src={a.url} alt={a.title} />
+                                </div>
                             ) : (
                                 <div className="image-placeholder" />
                             )}
                             <div className="achievement-title">{a.title}</div>
-                            <div className="achievement-time">{a.achieved_at}</div>
+                            <div className="achievement-time">{new Date(a.achieved_at).toLocaleDateString()}</div>
                         </div>
                     ))}
                 </div>

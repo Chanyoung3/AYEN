@@ -8,20 +8,20 @@ function ScenarioList({ onMenuClick }) {
     const [scenarios, setScenarios] = useState([]);
     const [loading, setLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState("");
+    const [achievementQueue, setAchievementQueue] = useState([]);
+    const [currentAchievement, setCurrentAchievement] = useState(null);
+
 
     useEffect(() => {
         const fetchScenarios = async () => {
             try {
-                const res = await fetch("/api/scenarios");
+                const res = await fetch(`${process.env.REACT_APP_API_URL}/api/scenarios`, {
+                    method: "GET",
+                    credentials: "include", // 쿠키 포함 (세션 유지)
+                });
                 const data = await res.json();
 
-                if (data.code === 200) {
-                    setScenarios(data.data);
-                } else if (data.code === 204) {
-                    setErrorMsg("시나리오가 존재하지 않습니다.");
-                } else {
-                    setErrorMsg("시나리오를 불러오는 데 실패했습니다.");
-                }
+                setScenarios(data);
             } catch (error) {
                 console.error("Error fetching scenarios:", error);
                 setErrorMsg("서버 오류가 발생했습니다.");
@@ -30,13 +30,69 @@ function ScenarioList({ onMenuClick }) {
             }
         };
 
+        const checkAchievements = async () => {
+            try {
+                const res = await fetch(`${process.env.REACT_APP_API_URL}/achievements/checkAchieve`, {
+                    method: "GET",
+                    credentials: "include",
+                });
+                if (!res.ok) throw new Error("업적 확인 실패");
+    
+                const json = await res.json();
+                if (json.data && json.data.length > 0) {
+                    setAchievementQueue(json.data); // 업적 목록을 큐에 추가
+                }
+            } catch (error) {
+                console.error("업적 확인 중 오류:", error);
+            }
+        };
+    
         fetchScenarios();
+        checkAchievements();
     }, []);
 
-    // 클릭 시 첫 번째 장면으로 이동하도록 수정
-    const handleScenarioClick = (scenarioId) => {
-        navigate(`/scenarios/${scenarioId}/scenes/1`);
-    };
+    useEffect(() => {
+        if (!currentAchievement && achievementQueue.length > 0) {
+            const next = achievementQueue[0];
+            setCurrentAchievement(next);
+    
+            const timer = setTimeout(() => {
+                setCurrentAchievement(null);
+                setAchievementQueue((prev) => prev.slice(1)); // 큐에서 제거
+            }, 3000); // 3초 후 다음 업적으로 넘어감
+    
+            return () => clearTimeout(timer);
+        }
+    }, [achievementQueue, currentAchievement]);
+    
+    const handleScenarioClick = async (scenarioId) => {
+        const confirmed = window.confirm("이 시나리오를 선택하시겠습니까?");
+        if (!confirmed) return;
+      
+        try {
+          // 템플릿 리터럴을 백틱으로 감싸야 변수 치환됨
+          const response = await fetch(`${process.env.REACT_APP_API_URL}/api/scenarios/${scenarioId}/scenes`, {
+            method: "POST",
+            credentials: "include",
+          });
+          if (!response.ok) {
+            throw new Error("신 번호를 가져오는데 실패했습니다.");
+          }
+      
+          // 응답이 JSON이라고 가정
+          const data = await response.json();
+      
+          // 서버가 { lastSceneId: 3 } 이런 식으로 준다고 가정
+          const lastSceneId = data.lastSceneId || 1; // 기본값 1
+      
+          // 해당 마지막 신 번호로 네비게이트
+          navigate(`/scenarios/${scenarioId}/scenes/${lastSceneId}`);
+      
+        } catch (error) {
+          console.error(error);
+          alert("신 정보를 가져오는 중 오류가 발생했습니다.");
+        }
+      };      
 
     if (loading) {
         return <div className="scenario-page">로딩 중...</div>;
@@ -50,6 +106,9 @@ function ScenarioList({ onMenuClick }) {
         <div className="scenario-page">
             <div className="top-bar">
                 <SideMenu />
+                <div className="logo">
+                    📖 AYEN
+                </div>
             </div>
             <h2 className="scenario-title">시나리오 선택</h2>
             <div className="scenario-grid">
@@ -76,6 +135,15 @@ function ScenarioList({ onMenuClick }) {
                     </div>
                 ))}
             </div>
+            {currentAchievement && (
+                <div className="snackbar">
+                    <img src={currentAchievement.image_url} alt={currentAchievement.title} className="snackbar-image" />
+                    <div className="snackbar-text">
+                        <strong>🏆 {currentAchievement.title}</strong><br />
+                        {currentAchievement.description}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
